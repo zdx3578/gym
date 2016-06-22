@@ -7,6 +7,9 @@ def mass_center(model):
     xpos = model.data.xipos
     return (np.sum(mass * xpos, 0) / np.sum(mass))[0]
 
+global qposmax
+qposmax=0
+
 class HumanoidStandupEnv(mujoco_env.MujocoEnv, utils.EzPickle):
     def __init__(self):
         mujoco_env.MujocoEnv.__init__(self, 'humanoidstandup.xml', 5)
@@ -22,7 +25,7 @@ class HumanoidStandupEnv(mujoco_env.MujocoEnv, utils.EzPickle):
                                data.cfrc_ext.flat])
 
     def _step(self, a):
-        qpos_bf = self.model.data.qpos
+        #qpos_bf = self.model.data.qpos
         self.do_simulation(a, self.frame_skip)
         qpos = self.model.data.qpos
         pos_after = self.model.data.qpos[2][0]
@@ -32,12 +35,16 @@ class HumanoidStandupEnv(mujoco_env.MujocoEnv, utils.EzPickle):
         quad_ctrl_cost =  0.1 * np.square(data.ctrl).sum()
         quad_impact_cost = .5e-6 * np.square(data.cfrc_ext).sum()
         quad_impact_cost = min(quad_impact_cost, 10)
-        reward = uph_cost - quad_ctrl_cost - quad_impact_cost + 1
+        reward = uph_cost - quad_ctrl_cost - quad_impact_cost + 5
+        global qposmax
+        qposmax=max(qposmax , pos_after)
         
-        done = bool(qpos_bf[2]>qpos[2]+0.25) 
+        done = bool(pos_after < qposmax - 0.25) 
         return self._get_obs(), reward, done, dict(reward_linup=uph_cost, reward_quadctrl=-quad_ctrl_cost, reward_impact=-quad_impact_cost)
 
     def reset_model(self):
+        global qposmax
+        qposmax=0
         c = 0.01
         self.set_state(
             self.init_qpos + self.np_random.uniform(low=-c, high=c, size=self.model.nq),
